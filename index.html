@@ -465,6 +465,14 @@
     }).join("");
   }
 
+  function nextLoggableDrillName(phaseNum, currentDrillName){
+    var loggable = PHASES[phaseNum].drills.filter(function(d){ return d.loggable; });
+    if(loggable.length===0) return "";
+    var idx = loggable.findIndex(function(d){ return d.name===currentDrillName; });
+    var nextIdx = idx===-1 ? 0 : (idx+1) % loggable.length;
+    return loggable[nextIdx].name;
+  }
+
   function renderLogForm(){
     var info = PHASES[formState.phase];
     var drillMeta = info.drills.find(function(d){ return d.name===formState.drill; });
@@ -576,8 +584,12 @@
     }
 
     saveData();
-    var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
-    formState.drill = firstDrill ? firstDrill.name : "";
+    if(graduatedFrom){
+      var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
+      formState.drill = firstDrill ? firstDrill.name : "";
+    } else {
+      formState.drill = nextLoggableDrillName(formState.phase, entry.drill);
+    }
     formState.distance = "";
     formState.attempts = 10;
     formState.makes = 0;
