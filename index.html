@@ -254,6 +254,7 @@
   var STORAGE_KEY = "shooting-tracker-data";
   var appData = { currentPhase:1, entries:[] };
   var formState = { date:"", phase:1, drill:"", distance:"", attempts:10, makes:0, note:"" };
+  var lastKnownDate = "";
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -273,6 +274,12 @@
   }
   function pct(makes, attempts){
     return attempts>0 ? Math.round((makes/attempts)*100) : 0;
+  }
+  function dateAddDays(dstr, delta){
+    var parts = dstr.split("-").map(Number);
+    var d = new Date(parts[0], parts[1]-1, parts[2]);
+    d.setDate(d.getDate()+delta);
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   }
   function tallyMarks(n){
     if(n<=0) return '<span class="tally-zero">&ndash;</span>';
@@ -321,16 +328,36 @@
   function computeStreak(phaseNum){
     var info = PHASES[phaseNum];
     if(!info.targetPercent) return null;
-    var relevant = appData.entries
-      .filter(function(e){ return e.phase===phaseNum && info.keyDrills.indexOf(e.drill)!==-1; })
-      .sort(function(a,b){
-        if(a.date!==b.date) return a.date < b.date ? 1 : -1;
-        return b.id.localeCompare(a.id);
-      });
-    var recent = relevant.slice(0, info.streakNeeded);
-    var metCount = recent.filter(function(e){ return pct(e.makes,e.attempts) >= info.targetPercent; }).length;
-    var isGraduationMet = relevant.length >= info.streakNeeded && recent.every(function(e){ return pct(e.makes,e.attempts) >= info.targetPercent; });
-    return {metCount:metCount, needed:info.streakNeeded, isGraduationMet:isGraduationMet};
+    var relevant = appData.entries.filter(function(e){ return e.phase===phaseNum && info.keyDrills.indexOf(e.drill)!==-1; });
+    if(relevant.length===0) return {metCount:0, needed:info.streakNeeded, isGraduationMet:false, wasReset:false};
+
+    // Gabungkan makes/attempts per tanggal, biar beberapa sesi di hari yang sama dihitung sebagai satu progres harian.
+    var byDate = {};
+    relevant.forEach(function(e){
+      if(!byDate[e.date]) byDate[e.date] = {makes:0, attempts:0};
+      byDate[e.date].makes += e.makes;
+      byDate[e.date].attempts += e.attempts;
+    });
+    var dates = Object.keys(byDate).sort();
+    var lastDate = dates[dates.length-1];
+    var today = todayStr();
+    var yesterday = dateAddDays(today, -1);
+
+    // Kalau hari terakhir latihan sudah lebih dari kemarin, berarti ada hari penuh yang kelewat tanpa progres — streak reset.
+    if(lastDate < yesterday){
+      return {metCount:0, needed:info.streakNeeded, isGraduationMet:false, wasReset:true};
+    }
+
+    // Hitung mundur dari hari terakhir latihan selama hari-harinya berturut-turut (kalender) dan target tercapai.
+    var metCount = 0;
+    var cursor = lastDate;
+    while(byDate[cursor] && pct(byDate[cursor].makes, byDate[cursor].attempts) >= info.targetPercent){
+      metCount++;
+      cursor = dateAddDays(cursor, -1);
+    }
+    var wasReset = metCount===0 && byDate[lastDate] !== undefined;
+    var isGraduationMet = metCount >= info.streakNeeded;
+    return {metCount: Math.min(metCount, info.streakNeeded), needed: info.streakNeeded, isGraduationMet: isGraduationMet, wasReset: wasReset};
   }
 
   function computeChartData(){
@@ -441,11 +468,13 @@
         dots += '<span class="sdot '+(i<streak.metCount?"filled":"")+'"></span>';
       }
       streakHtml =
-        '<div class="streak"><div class="streak-top">Target '+info.targetPercent+'%+ &middot; '+info.streakNeeded+' sesi berturut</div>'+
+        '<div class="streak"><div class="streak-top">Target '+info.targetPercent+'%+ &middot; '+info.streakNeeded+' hari berturut-turut</div>'+
         '<div class="streak-dots">'+dots+'</div>'+
         '<div class="streak-status '+(streak.isGraduationMet?"met":"")+'">'+
-        (streak.isGraduationMet ? "Kriteria lulus terpenuhi &check;" : streak.metCount+"/"+streak.needed+" sesi terbaru tercapai target") +
-        '</div></div>';
+        (streak.isGraduationMet ? "Kriteria lulus terpenuhi &check;" : streak.metCount+"/"+streak.needed+" hari berturut tercapai target") +
+        '</div>'+
+        (streak.wasReset ? '<div class="maintenance-note" style="margin:8px 0 0;">Streak di-reset — ada hari yang kelewat atau target belum tercapai. Mulai lagi dari hari ini.</div>' : '')+
+        '</div>';
     } else {
       streakHtml = '<p class="maintenance-note">Fase maintenance — nggak ada gate angka, terus lacak & jaga performa.</p>';
     }
@@ -544,6 +573,27 @@
     }).join("");
     $("reference-container").innerHTML =
       '<div class="card ref-wrapper"><div class="card-head"><span class="tag">REFERENSI</span><h2>Detail Tiap Fase</h2></div>'+html+'</div>';
+  }
+
+  function resetFormForNewDay(){
+    formState.date = todayStr();
+    formState.phase = appData.currentPhase;
+    var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
+    formState.drill = firstDrill ? firstDrill.name : "";
+    formState.distance = "";
+    formState.attempts = 10;
+    formState.makes = 0;
+    formState.note = "";
+  }
+
+  function checkDailyReset(){
+    var today = todayStr();
+    if(today !== lastKnownDate){
+      lastKnownDate = today;
+      resetFormForNewDay();
+      renderLogForm();
+      showToast("Hari baru — form drill direset ke drill pertama");
+    }
   }
 
   function jumpToReference(p){
@@ -673,8 +723,9 @@
 
   (function init(){
     loadData();
+    lastKnownDate = todayStr();
     formState.phase = appData.currentPhase;
-    formState.date = todayStr();
+    formState.date = lastKnownDate;
     var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
     formState.drill = firstDrill ? firstDrill.name : "";
     renderHeader();
@@ -684,6 +735,12 @@
     renderChart();
     renderReference();
   })();
+
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible") checkDailyReset();
+  });
+  window.addEventListener("focus", checkDailyReset);
+  window.addEventListener("pageshow", checkDailyReset);
 
   if("serviceWorker" in navigator){
     window.addEventListener("load", function(){
