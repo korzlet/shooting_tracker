@@ -112,14 +112,24 @@
   .set-info-value{font-family:var(--mono); font-weight:700; text-align:right;}
   .set-instruction{font-size:13px; color:var(--chalk-dim); line-height:1.45; margin:8px 0 0; font-style:italic;}
 
-  /* ---- Steppers ---- */
-  .stepper-row{display:flex; gap:12px; margin:14px 0 8px;}
-  .stepper{flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;}
+  /* ---- Steppers ----
+     Both levels of this flex chain (.stepper inside .stepper-row, and
+     .stepper-controls inside .stepper) need min-width:0 explicitly.
+     Flex items default to min-width:auto, which floors their shrink at the
+     content's min-content size — with two fixed-width buttons inside, that
+     floor is wider than the card can offer on narrow phones, so the row
+     (and everything containing it) gets pushed past the viewport instead
+     of shrinking. min-width:0 lets the normal shrink algorithm apply. */
+  .stepper-row{display:flex; gap:10px; margin:14px 0 8px; width:100%;}
+  .stepper{flex:1 1 0; min-width:0; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px 8px; text-align:center;}
   .stepper-label{font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--chalk-dim); display:block; margin-bottom:8px;}
-  .stepper-controls{display:flex; align-items:center; justify-content:center; gap:10px;}
-  .stbtn{width:46px; height:46px; border-radius:9px; border:1px solid var(--net-white); background:rgba(255,255,255,0.05); color:var(--chalk); font-size:21px; font-weight:700; cursor:pointer; line-height:1;}
+  .stepper-controls{display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0;}
+  .stbtn{flex:0 0 auto; width:clamp(36px, 11vw, 46px); height:clamp(36px, 11vw, 46px); border-radius:9px; border:1px solid var(--net-white); background:rgba(255,255,255,0.05); color:var(--chalk); font-size:21px; font-weight:700; cursor:pointer; line-height:1;}
   .stbtn:active{transform:scale(0.9); background:var(--rim-orange); border-color:var(--rim-orange);}
-  .stepper-value{font-family:var(--mono); font-size:22px; font-weight:700; min-width:32px; display:inline-block; font-variant-numeric:tabular-nums;}
+  .stepper-value{flex:1 1 auto; min-width:0; font-family:var(--mono); font-size:22px; font-weight:700; display:inline-block; font-variant-numeric:tabular-nums;}
+  @media (max-width:340px){
+    .stepper-row{flex-direction:column;}
+  }
   .pct-preview{text-align:center; font-family:var(--mono); font-size:28px; font-weight:800; color:var(--rim-orange); margin:2px 0 14px; text-shadow:0 0 14px rgba(255,107,26,0.35);}
 
   /* ---- History ---- */
