@@ -97,6 +97,21 @@
   .field textarea{resize:vertical; min-height:48px;}
   .form-error{color:var(--backboard-red); font-size:13px; margin-top:6px; min-height:14px;}
 
+  /* ---- Set progress (current set being logged) ---- */
+  .set-progress{margin:2px 0 14px;}
+  .set-progress-top{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;}
+  .set-progress-label{font-family:var(--mono); font-size:14px; font-weight:800; color:var(--rim-orange);}
+  .drill-purpose{font-size:12.5px; color:var(--chalk-dim); margin:0 0 10px; line-height:1.4;}
+  .set-dots{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;}
+  .set-dot{width:16px; height:16px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid var(--net-white); display:inline-block;}
+  .set-dot.done{background:var(--swish); border-color:var(--swish);}
+  .set-dot.current{background:var(--rim-orange); border-color:var(--rim-orange);}
+  .set-info{background:rgba(0,0,0,0.2); border-radius:8px; padding:11px 12px;}
+  .set-info-row{display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:3px 0;}
+  .set-info-label{color:var(--chalk-dim); text-transform:uppercase; font-size:11px; letter-spacing:0.04em; flex-shrink:0;}
+  .set-info-value{font-family:var(--mono); font-weight:700; text-align:right;}
+  .set-instruction{font-size:13px; color:var(--chalk-dim); line-height:1.45; margin:8px 0 0; font-style:italic;}
+
   /* ---- Steppers ---- */
   .stepper-row{display:flex; gap:12px; margin:14px 0 8px;}
   .stepper{flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;}
@@ -116,6 +131,7 @@
   .hist-phase{font-family:var(--mono); font-size:11.5px; background:rgba(255,107,26,0.15); color:var(--rim-orange); padding:2px 7px; border-radius:4px; font-weight:700;}
   .hist-pct{font-family:var(--mono); font-weight:800; margin-left:auto; font-size:16px;}
   .hist-drill{font-size:14px; margin-bottom:7px;}
+  .hist-set-tag{font-family:var(--mono); font-size:11.5px; color:var(--chalk-dim);}
   .hist-tally{display:flex; flex-direction:column; gap:3px; margin-bottom:5px;}
   .tally-line{display:flex; align-items:center; flex-wrap:wrap;}
   .tally-line.makes{color:var(--swish);}
@@ -142,14 +158,21 @@
   .ref-card summary::after{content:'+'; margin-left:auto; font-size:19px; color:var(--chalk-dim);}
   .ref-card[open] summary::after{content:'\2013';}
   .ref-drills{margin:10px 0;}
-  .ref-drill{padding:7px 0; border-top:1px dashed var(--net-white);}
+  .ref-drill{padding:10px 0; border-top:1px dashed var(--net-white);}
   .ref-drill:first-child{border-top:none;}
   .ref-drill-name{display:block; font-weight:700; font-size:13.5px;}
   .ref-drill-detail{display:block; font-size:12.5px; color:var(--chalk-dim); margin-top:3px; line-height:1.4;}
+  .ref-drill-meta{display:block; font-size:11.5px; color:var(--chalk-dim); margin-top:2px; font-style:italic;}
   .ref-grad{font-size:13px; color:var(--chalk-dim); margin-top:8px; line-height:1.5;}
+  .ref-sets{margin-top:8px; display:flex; flex-direction:column; gap:7px;}
+  .ref-set{background:rgba(0,0,0,0.18); border-radius:7px; padding:9px 10px;}
+  .ref-set-head{font-family:var(--mono); font-size:11px; font-weight:800; color:var(--rim-orange); margin-bottom:4px;}
+  .ref-set-row{display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--chalk-dim); padding:1px 0;}
+  .ref-set-row span:last-child{color:var(--chalk); font-weight:600; text-align:right;}
+  .ref-set-instr{font-size:12px; color:var(--chalk-dim); margin-top:5px; font-style:italic; line-height:1.4;}
 
   /* ---- Toast ---- */
-  .toast{position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--chalk); color:var(--court-green-deep); font-weight:700; font-size:13.5px; padding:11px 18px; border-radius:20px; box-shadow:0 6px 20px rgba(0,0,0,0.35); z-index:50; transition:opacity .2s ease, transform .2s ease;}
+  .toast{position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--chalk); color:var(--court-green-deep); font-weight:700; font-size:13.5px; padding:11px 18px; border-radius:20px; box-shadow:0 6px 20px rgba(0,0,0,0.35); z-index:50; transition:opacity .2s ease, transform .2s ease; max-width:88vw; text-align:center;}
   .toast.hidden{opacity:0; pointer-events:none; transform:translateX(-50%) translateY(10px);}
   .toast.error{background:var(--backboard-red); color:#fff;}
 
@@ -207,10 +230,46 @@
       targetPercent:80, streakNeeded:3,
       keyDrills:["One-hand form shooting (1m)"],
       drills:[
-        {name:"One-hand form shooting (1m)", detail:"5 set x 10 tembakan — target 8/10", loggable:true},
-        {name:"Seated shot (1,5m)", detail:"3 set x 10 tembakan, isolasi lengan", loggable:true},
-        {name:"Pemanasan bebas dekat ring", detail:"20 tembakan, nggak dihitung — rasain gerakan aja", loggable:false},
-        {name:"Wall/mirror follow-through", detail:"3 set x 15 repetisi tanpa bola", loggable:false}
+        {
+          name:"One-hand form shooting (1m)", loggable:true,
+          purpose:"Bentuk gerakan lengan & pergelangan jadi otomatis dari jarak sangat dekat.",
+          shotType:"One-hand form shot", restBetweenSets:"~30 detik",
+          sets:[
+            {spot:"1 meter dari ring", shots:10, target:8, instruction:"Satu tangan aja, tangan satunya di pinggang/belakang punggung. Fokus siku masuk & tahan follow-through."},
+            {spot:"1 meter dari ring", shots:10, target:8, instruction:"Sama kayak set 1 — jaga konsistensi tiap tembakan."},
+            {spot:"1 meter dari ring", shots:10, target:8, instruction:"Kalau mulai capek, jangan buru-buru — turunin ritme, jaga form."},
+            {spot:"1 meter dari ring", shots:10, target:8, instruction:"Cek lagi: siku di bawah bola, bukan ngebuka ke samping."},
+            {spot:"1 meter dari ring", shots:10, target:8, instruction:"Set terakhir — pastiin follow-through ditahan sampai bola nyampe ring."}
+          ]
+        },
+        {
+          name:"Seated shot (1,5m)", loggable:true,
+          purpose:"Isolasi lengan & pergelangan, ilangin peran kaki sepenuhnya.",
+          shotType:"Seated shot (duduk di kursi)", restBetweenSets:"~30 detik",
+          sets:[
+            {spot:"1,5 meter dari ring, duduk di kursi", shots:10, target:null, instruction:"Cuma pakai lengan & pergelangan buat nembak. Rasain follow-through-nya."},
+            {spot:"1,5 meter dari ring, duduk di kursi", shots:10, target:null, instruction:"Fokus snap pergelangan tangan pas lepas."},
+            {spot:"1,5 meter dari ring, duduk di kursi", shots:10, target:null, instruction:"Set terakhir — bandingin rasanya sama set 1, udah lebih konsisten?"}
+          ]
+        },
+        {
+          name:"Pemanasan bebas dekat ring", loggable:false,
+          purpose:"Pemanasan sebelum masuk drill inti.",
+          shotType:"Free shot",
+          sets:[
+            {spot:"Deket ring, jarak bebas", shots:20, target:null, instruction:"Nggak usah dihitung masuk-nggak, cuma buat rasain gerakan dulu."}
+          ]
+        },
+        {
+          name:"Wall/mirror follow-through", loggable:false,
+          purpose:"Groove gerakan tembak tanpa distraksi mikirin hasil masuk/nggak.",
+          shotType:"Shooting motion (cermin) atau lempar ke tembok", restBetweenSets:"~20 detik",
+          sets:[
+            {spot:"-", shots:15, target:null, instruction:"Fokus siku & follow-through, tahan posisi gooseneck tiap repetisi."},
+            {spot:"-", shots:15, target:null, instruction:"Ulangi, cek di cermin/rasain di tembok — konsisten?"},
+            {spot:"-", shots:15, target:null, instruction:"Set terakhir, paling pelan & paling sadar gerakannya."}
+          ]
+        }
       ],
       graduation:"8/10 di one-hand form shooting, 3 sesi berturut-turut, form bersih di video (nggak ada elbow flare / thumb flick / badan condong)."
     },
@@ -220,8 +279,25 @@
       targetPercent:70, streakNeeded:3,
       keyDrills:["Spot shooting"],
       drills:[
-        {name:"Spot shooting", detail:"5 tembakan x 3 putaran per titik — naik titik kalau 4/5 di 2 dari 3 putaran", loggable:true, hasDistance:true},
-        {name:"Free throw routine", detail:"2 set x 10, rutinitas pra-tembak yang sama tiap kali", loggable:true}
+        {
+          name:"Spot shooting", loggable:true, hasDistance:true,
+          purpose:"Nambah jarak bertahap sambil jaga form dari Fase 1.",
+          shotType:"Set shot (dua tangan)", restBetweenSets:"~30 detik",
+          sets:[
+            {spot:"Jarak sesuai progresmu (isi di atas)", shots:5, target:4, instruction:"Tembak dari titik yang sama. Naik 1 titik cuma kalau 3 sesi berturut nyampe target di titik ini."},
+            {spot:"Jarak sesuai progresmu (isi di atas)", shots:5, target:4, instruction:"Sama, titik yang sama."},
+            {spot:"Jarak sesuai progresmu (isi di atas)", shots:5, target:4, instruction:"Putaran terakhir — jaga ritme yang sama kayak set 1."}
+          ]
+        },
+        {
+          name:"Free throw routine", loggable:true,
+          purpose:"Bangun rutinitas pra-tembak yang konsisten.",
+          shotType:"Free throw", restBetweenSets:"~20 detik",
+          sets:[
+            {spot:"Garis free throw (~4,6 meter)", shots:10, target:7, instruction:"Ulangi rutinitas yang sama persis tiap sebelum nembak — dribble, napas, tembak."},
+            {spot:"Garis free throw (~4,6 meter)", shots:10, target:7, instruction:"Sama persis kayak set 1, jangan diubah rutinitasnya."}
+          ]
+        }
       ],
       graduation:"70%+ di titik terjauh yang muat di lapanganmu, 3 sesi berturut-turut."
     },
@@ -231,9 +307,37 @@
       targetPercent:60, streakNeeded:3,
       keyDrills:["Catch-and-shoot","Shot off dribble"],
       drills:[
-        {name:"Catch-and-shoot", detail:"5 spot x 6 tembakan (30 total) — target 65%+", loggable:true},
-        {name:"Shot off dribble", detail:"4 spot x 5 tembakan (20 total) — target 60%+", loggable:true},
-        {name:"Free throw pressure set", detail:"1 set x 10, dilakukan pas udah agak capek", loggable:true}
+        {
+          name:"Catch-and-shoot", loggable:true,
+          purpose:"Tembakan setelah nangkep bola, bukan dari posisi diam.",
+          shotType:"Catch and shoot", restBetweenSets:"~30 detik",
+          sets:[
+            {spot:"Titik 1 (kiri jauh)", shots:6, target:4, instruction:"Lempar sendiri ke lantai/tembok, catch bola, langsung tembak."},
+            {spot:"Titik 2 (kiri tengah)", shots:6, target:4, instruction:"Sama, geser ke titik ini."},
+            {spot:"Titik 3 (tengah/depan)", shots:6, target:4, instruction:"Titik tengah, langsung hadap ring."},
+            {spot:"Titik 4 (kanan tengah)", shots:6, target:4, instruction:"Geser ke sisi kanan."},
+            {spot:"Titik 5 (kanan jauh)", shots:6, target:4, instruction:"Titik terakhir, sisi kanan jauh."}
+          ]
+        },
+        {
+          name:"Shot off dribble", loggable:true,
+          purpose:"Tembakan setelah 1-2 dribble dari sudut ke titik tembak.",
+          shotType:"Shot off the dribble", restBetweenSets:"~30 detik",
+          sets:[
+            {spot:"Sudut kiri", shots:5, target:3, instruction:"1-2 dribble dari sudut ke spot tembak, lalu tembak."},
+            {spot:"Sudut kanan", shots:5, target:3, instruction:"Sama, dari sisi kanan."},
+            {spot:"Depan kiri", shots:5, target:3, instruction:"Dribble dari depan sisi kiri."},
+            {spot:"Depan kanan", shots:5, target:3, instruction:"Set terakhir, dari depan sisi kanan."}
+          ]
+        },
+        {
+          name:"Free throw pressure set", loggable:true,
+          purpose:"Latih free throw dalam kondisi udah agak capek.",
+          shotType:"Free throw (pressure)",
+          sets:[
+            {spot:"Garis free throw", shots:10, target:7, instruction:"Lakukan SETELAH drill volume di atas, pas napas masih agak ngos-ngosan."}
+          ]
+        }
       ],
       graduation:"60%+ rata-rata di drill gerakan, 3 sesi berturut-turut, form masih sama kayak Fase 1."
     },
@@ -243,9 +347,35 @@
       targetPercent:null, streakNeeded:null,
       keyDrills:[],
       drills:[
-        {name:"Kompetisi vs diri sendiri", detail:"Harus 7 dari 10 sebelum istirahat, ulang 3-4 ronde", loggable:true},
-        {name:"Fatigue shooting", detail:"Sprint pendek / jumping jack cepat, langsung tembak 10x", loggable:true},
-        {name:"Pickup game (jarak teruji)", detail:"1x/minggu, cuma nembak dari jarak yang udah lulus", loggable:true}
+        {
+          name:"Kompetisi vs diri sendiri", loggable:true,
+          purpose:"Simulasi tekanan kompetitif lawan target angka.",
+          shotType:"Spot shot kompetisi",
+          sets:[
+            {spot:"Titik favoritmu", shots:10, target:7, instruction:"Kalau belum capai 7/10, istirahat dulu sebelum lanjut set berikutnya — jangan buru-buru."},
+            {spot:"Titik favoritmu", shots:10, target:7, instruction:"Ronde 2, jaga fokus yang sama."},
+            {spot:"Titik favoritmu", shots:10, target:7, instruction:"Ronde 3."},
+            {spot:"Titik favoritmu", shots:10, target:7, instruction:"Ronde terakhir."}
+          ]
+        },
+        {
+          name:"Fatigue shooting", loggable:true,
+          purpose:"Tes apakah form masih bertahan pas kondisi capek.",
+          shotType:"Set shot pasca-fatigue",
+          sets:[
+            {spot:"Titik favoritmu", shots:10, target:6, instruction:"Sprint pendek / jumping jack cepat dulu, baru langsung tembak tanpa jeda napas."},
+            {spot:"Titik favoritmu", shots:10, target:6, instruction:"Ulangi — sprint/jumping jack dulu, baru tembak."},
+            {spot:"Titik favoritmu", shots:10, target:6, instruction:"Set terakhir, paling capek — di sinilah form beneran diuji."}
+          ]
+        },
+        {
+          name:"Pickup game (jarak teruji)", loggable:true,
+          purpose:"Aplikasi langsung form yang udah teruji ke situasi main beneran.",
+          shotType:"Game shot",
+          sets:[
+            {spot:"-", shots:null, target:null, instruction:"Cuma nembak dari jarak yang udah lulus di fase sebelumnya — jangan maksa 3 point kalau belum lulus di situ. Catat total tembakan & masuk setelah main."}
+          ]
+        }
       ],
       graduation:"Nggak ada gate angka — fase maintenance. Terus lacak, balik ke fase sebelumnya kalau performa turun."
     }
@@ -253,7 +383,7 @@
 
   var STORAGE_KEY = "shooting-tracker-data";
   var appData = { currentPhase:1, entries:[] };
-  var formState = { date:"", phase:1, drill:"", distance:"", attempts:10, makes:0, note:"" };
+  var formState = { date:"", phase:1, drill:"", setIndex:0, distance:"", attempts:10, makes:0, note:"" };
   var lastKnownDate = "";
 
   function $(id){ return document.getElementById(id); }
@@ -323,6 +453,43 @@
     try{
       localStorage.setItem(STORAGE_KEY, JSON.stringify({currentPhase:appData.currentPhase, entries:appData.entries}));
     }catch(err){ showToast("Gagal menyimpan data", true); }
+  }
+
+  // ---- Drill / set helpers ----
+  function getDrillMeta(phaseNum, drillName){
+    return PHASES[phaseNum].drills.find(function(d){ return d.name===drillName; });
+  }
+  function getCurrentSetInfo(phaseNum, drillName, setIndex){
+    var meta = getDrillMeta(phaseNum, drillName);
+    if(!meta || !meta.sets || meta.sets.length===0) return null;
+    var idx = Math.max(0, Math.min(setIndex||0, meta.sets.length-1));
+    return { meta: meta, setIndex: idx, setsTotal: meta.sets.length, set: meta.sets[idx] };
+  }
+  function nextLoggableDrillName(phaseNum, currentDrillName){
+    var loggable = PHASES[phaseNum].drills.filter(function(d){ return d.loggable; });
+    if(loggable.length===0) return "";
+    var idx = loggable.findIndex(function(d){ return d.name===currentDrillName; });
+    var nextIdx = idx===-1 ? 0 : (idx+1) % loggable.length;
+    return loggable[nextIdx].name;
+  }
+  function syncAttemptsToCurrentSet(){
+    var info = getCurrentSetInfo(formState.phase, formState.drill, formState.setIndex);
+    formState.attempts = (info && info.set.shots!=null) ? info.set.shots : 10;
+    formState.makes = 0;
+  }
+  // Advance within the current drill's sets; once all sets of a drill are done, move to the next drill (set 1).
+  function advanceSetOrDrill(){
+    var info = getCurrentSetInfo(formState.phase, formState.drill, formState.setIndex);
+    if(!info){
+      formState.drill = nextLoggableDrillName(formState.phase, formState.drill);
+      formState.setIndex = 0;
+    } else if(info.setIndex + 1 < info.setsTotal){
+      formState.setIndex = info.setIndex + 1;
+    } else {
+      formState.drill = nextLoggableDrillName(formState.phase, formState.drill);
+      formState.setIndex = 0;
+    }
+    syncAttemptsToCurrentSet();
   }
 
   function computeStreak(phaseNum){
@@ -494,27 +661,46 @@
     }).join("");
   }
 
-  function nextLoggableDrillName(phaseNum, currentDrillName){
-    var loggable = PHASES[phaseNum].drills.filter(function(d){ return d.loggable; });
-    if(loggable.length===0) return "";
-    var idx = loggable.findIndex(function(d){ return d.name===currentDrillName; });
-    var nextIdx = idx===-1 ? 0 : (idx+1) % loggable.length;
-    return loggable[nextIdx].name;
-  }
-
   function renderLogForm(){
     var info = PHASES[formState.phase];
     var drillMeta = info.drills.find(function(d){ return d.name===formState.drill; });
     var showDistance = drillMeta && drillMeta.hasDistance;
+    var setInfo = getCurrentSetInfo(formState.phase, formState.drill, formState.setIndex);
     var p = pct(formState.makes, formState.attempts);
     var phaseOptions = [1,2,3,4].map(function(p2){
       return '<option value="'+p2+'" '+(p2===formState.phase?"selected":"")+'>Fase '+p2+' &middot; '+esc(PHASES[p2].name)+'</option>';
     }).join("");
+
+    var setBlockHtml = "";
+    if(setInfo){
+      var dotsHtml = setInfo.meta.sets.map(function(s, i){
+        var cls = i < setInfo.setIndex ? "done" : i === setInfo.setIndex ? "current" : "";
+        return '<span class="set-dot '+cls+'"></span>';
+      }).join("");
+      var s = setInfo.set;
+      var shotsLabel = (s.shots!=null) ? s.shots : "Terbuka";
+      var targetLabel = (s.target!=null) ? (s.target+"/"+(s.shots!=null?s.shots:"?")) : "&ndash;";
+      setBlockHtml =
+        '<div class="set-progress">'+
+          '<div class="set-progress-top"><span class="set-progress-label">Set '+(setInfo.setIndex+1)+' / '+setInfo.setsTotal+'</span></div>'+
+          (drillMeta.purpose ? '<p class="drill-purpose">'+esc(drillMeta.purpose)+'</p>' : "")+
+          '<div class="set-dots">'+dotsHtml+'</div>'+
+          '<div class="set-info">'+
+            '<div class="set-info-row"><span class="set-info-label">Spot</span><span class="set-info-value">'+esc(s.spot||"-")+'</span></div>'+
+            '<div class="set-info-row"><span class="set-info-label">Shot</span><span class="set-info-value">'+shotsLabel+'</span></div>'+
+            '<div class="set-info-row"><span class="set-info-label">Target</span><span class="set-info-value">'+targetLabel+'</span></div>'+
+            (drillMeta.restBetweenSets ? '<div class="set-info-row"><span class="set-info-label">Rest</span><span class="set-info-value">'+esc(drillMeta.restBetweenSets)+'</span></div>' : "")+
+          '</div>'+
+          (s.instruction ? '<p class="set-instruction">'+esc(s.instruction)+'</p>' : "")+
+        '</div>';
+    }
+
     $("log-form-container").innerHTML =
       '<div class="card form-card"><div class="card-head"><span class="tag">CATAT SESI</span><h2>Sesi Latihan Baru</h2></div>'+
       '<label class="field"><span>Tanggal</span><input type="date" id="f-date" value="'+formState.date+'"></label>'+
       '<label class="field"><span>Fase</span><select id="f-phase">'+phaseOptions+'</select></label>'+
       '<label class="field"><span>Drill</span><select id="f-drill">'+drillOptionsHtml(formState.phase, formState.drill)+'</select></label>'+
+      setBlockHtml+
       (showDistance ? '<label class="field"><span>Jarak dari ring (meter)</span><input type="number" id="f-distance" min="0.5" step="0.5" value="'+esc(formState.distance)+'" placeholder="cth. 3.5"></label>' : "")+
       '<div class="stepper-row">'+
       '<div class="stepper"><span class="stepper-label">Attempts</span><div class="stepper-controls">'+
@@ -544,9 +730,10 @@
     }
     var rows = sorted.map(function(e){
       var p = pct(e.makes, e.attempts), misses = e.attempts - e.makes;
+      var setTag = (e.setsTotal && e.setsTotal>1) ? ' <span class="hist-set-tag">&middot; Set '+((e.setIndex||0)+1)+'/'+e.setsTotal+'</span>' : "";
       return '<div class="hist-row">'+
         '<div class="hist-top"><span class="hist-date">'+formatDate(e.date)+'</span><span class="hist-phase">F'+e.phase+'</span><span class="hist-pct">'+p+'%</span></div>'+
-        '<div class="hist-drill">'+esc(e.drill)+(e.distance?' &middot; '+esc(e.distance)+'m':'')+'</div>'+
+        '<div class="hist-drill">'+esc(e.drill)+setTag+(e.distance?' &middot; '+esc(e.distance)+'m':'')+'</div>'+
         '<div class="hist-tally"><div class="tally-line makes">'+tallyMarks(e.makes)+'</div>'+
         (misses>0?'<div class="tally-line misses">'+tallyMarks(misses)+'</div>':'')+'</div>'+
         (e.note?'<div class="hist-note">'+esc(e.note)+'</div>':'')+
@@ -562,7 +749,25 @@
     var html = [1,2,3,4].map(function(p){
       var info = PHASES[p];
       var drillRows = info.drills.map(function(d){
-        return '<div class="ref-drill"><span class="ref-drill-name">'+esc(d.name)+'</span><span class="ref-drill-detail">'+esc(d.detail)+'</span></div>';
+        var setsHtml = (d.sets||[]).map(function(s, i){
+          var shotsLabel = (s.shots!=null) ? s.shots : "Terbuka";
+          var targetLabel = (s.target!=null) ? (s.target+"/"+(s.shots!=null?s.shots:"?")) : "&ndash;";
+          return '<div class="ref-set">'+
+            '<div class="ref-set-head">Set '+(i+1)+'/'+d.sets.length+'</div>'+
+            '<div class="ref-set-row"><span>Spot</span><span>'+esc(s.spot||"-")+'</span></div>'+
+            '<div class="ref-set-row"><span>Shot</span><span>'+shotsLabel+'</span></div>'+
+            '<div class="ref-set-row"><span>Target</span><span>'+targetLabel+'</span></div>'+
+            (s.instruction ? '<div class="ref-set-instr">'+esc(s.instruction)+'</div>' : "")+
+            '</div>';
+        }).join("");
+        var metaBits = [];
+        if(d.shotType) metaBits.push(esc(d.shotType));
+        if(d.restBetweenSets) metaBits.push("Rest "+esc(d.restBetweenSets));
+        return '<div class="ref-drill"><span class="ref-drill-name">'+esc(d.name)+(d.loggable?'':' (nggak dicatat)')+'</span>'+
+          (d.purpose ? '<span class="ref-drill-detail">'+esc(d.purpose)+'</span>' : "")+
+          (metaBits.length ? '<span class="ref-drill-meta">'+metaBits.join(" &middot; ")+'</span>' : "")+
+          '<div class="ref-sets">'+setsHtml+'</div>'+
+          '</div>';
       }).join("");
       return '<details class="ref-card" id="ref-phase-'+p+'" '+(p===appData.currentPhase?"open":"")+'>'+
         '<summary><span class="tag" style="display:inline">FASE '+p+'</span> '+esc(info.name)+'</summary>'+
@@ -580,10 +785,10 @@
     formState.phase = appData.currentPhase;
     var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
     formState.drill = firstDrill ? firstDrill.name : "";
+    formState.setIndex = 0;
     formState.distance = "";
-    formState.attempts = 10;
-    formState.makes = 0;
     formState.note = "";
+    syncAttemptsToCurrentSet();
   }
 
   function checkDailyReset(){
@@ -612,11 +817,14 @@
     if(!formState.drill){ errEl.textContent = "Pilih drill dulu."; return; }
     if(!formState.attempts || formState.attempts<=0){ errEl.textContent = "Attempts harus lebih dari 0."; return; }
     if(!formState.date){ errEl.textContent = "Isi tanggal."; return; }
+    var setInfoAtSave = getCurrentSetInfo(formState.phase, formState.drill, formState.setIndex);
     var entry = {
       id: Date.now()+"-"+Math.random().toString(36).slice(2,7),
       date: formState.date,
       phase: formState.phase,
       drill: formState.drill,
+      setIndex: setInfoAtSave ? setInfoAtSave.setIndex : 0,
+      setsTotal: setInfoAtSave ? setInfoAtSave.setsTotal : 1,
       distance: formState.distance ? parseFloat(formState.distance) : null,
       attempts: formState.attempts,
       makes: formState.makes,
@@ -635,15 +843,17 @@
     }
 
     saveData();
+    var prevDrill = entry.drill;
     if(graduatedFrom){
       var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
       formState.drill = firstDrill ? firstDrill.name : "";
+      formState.setIndex = 0;
+      formState.distance = "";
+      syncAttemptsToCurrentSet();
     } else {
-      formState.drill = nextLoggableDrillName(formState.phase, entry.drill);
+      advanceSetOrDrill();
+      if(formState.drill !== prevDrill){ formState.distance = ""; }
     }
-    formState.distance = "";
-    formState.attempts = 10;
-    formState.makes = 0;
     formState.note = "";
     formState.date = todayStr();
     renderHeader();
@@ -653,8 +863,10 @@
     renderChart();
     if(graduatedFrom){
       showToast("Fase "+graduatedFrom+" lulus otomatis — lanjut ke Fase "+appData.currentPhase+"!");
+    } else if(formState.drill !== prevDrill){
+      showToast("Drill \""+prevDrill+"\" selesai — lanjut ke \""+formState.drill+"\"");
     } else {
-      showToast("Sesi tersimpan");
+      showToast("Set tersimpan — lanjut Set "+(formState.setIndex+1)+"/"+setInfoAtSave.setsTotal);
     }
   }
 
@@ -676,7 +888,9 @@
     formState.phase = next;
     var firstDrill = PHASES[next].drills.find(function(d){ return d.loggable; });
     formState.drill = firstDrill ? firstDrill.name : "";
+    formState.setIndex = 0;
     formState.distance = "";
+    syncAttemptsToCurrentSet();
     renderHeader();
     renderActivePhaseCard();
     renderLogForm();
@@ -707,12 +921,16 @@
       formState.phase = parseInt(e.target.value,10);
       var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
       formState.drill = firstDrill ? firstDrill.name : "";
+      formState.setIndex = 0;
       formState.distance = "";
+      syncAttemptsToCurrentSet();
       renderLogForm();
     } else if(e.target.id==="f-drill"){
       formState.drill = e.target.value;
+      formState.setIndex = 0;
       var meta = PHASES[formState.phase].drills.find(function(d){ return d.name===formState.drill; });
       if(!meta || !meta.hasDistance){ formState.distance = ""; }
+      syncAttemptsToCurrentSet();
       renderLogForm();
     }
   });
@@ -729,6 +947,8 @@
     formState.date = lastKnownDate;
     var firstDrill = PHASES[formState.phase].drills.find(function(d){ return d.loggable; });
     formState.drill = firstDrill ? firstDrill.name : "";
+    formState.setIndex = 0;
+    syncAttemptsToCurrentSet();
     renderHeader();
     renderActivePhaseCard();
     renderLogForm();
