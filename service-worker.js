@@ -1,6 +1,6 @@
 // Cache-first offline shell. Bump CACHE_NAME on every deploy so old clients
 // pick up new files instead of being stuck on a stale cached index.html.
-var CACHE_NAME = "shooting-tracker-v6";
+var CACHE_NAME = "shooting-tracker-v7";
 var ASSETS = [
   "./",
   "./index.html",
