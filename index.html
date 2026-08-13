@@ -123,7 +123,10 @@
   /* ---- Header ---- */
   .scoreboard{position:relative; padding:12px 4px 12px; margin-bottom:10px;}
   .topbar{position:absolute; top:0; left:-12px; right:-12px; height:4px; background:linear-gradient(90deg, var(--color-primary), var(--color-accent)); border-radius:0 0 4px 4px;}
-  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; color:var(--color-text-secondary); margin-top:10px;}
+  .eyebrow-row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:0.12em; color:var(--color-text-secondary);}
+  .settings-btn{flex-shrink:0; width:32px; height:32px; border-radius:8px; border:1px solid var(--color-border); background:transparent; color:var(--color-text-secondary); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;}
+  .settings-btn:active{transform:scale(0.92); background:var(--color-primary); border-color:var(--color-primary); color:var(--color-on-primary);}
   .phase-readout{display:flex; align-items:baseline; gap:10px; margin:6px 0 10px;}
   .phase-num{font-family:var(--mono); font-size:28px; font-weight:800; color:var(--color-accent-on-surface); text-shadow:0 0 16px rgba(253,185,39,0.25);}
   .phase-name{font-size:14px; color:var(--color-text-secondary); text-transform:uppercase; letter-spacing:0.02em;}
@@ -305,8 +308,10 @@
       <div id="history-container"></div>
     </div>
     <div class="tab-panel hidden" data-panel="panduan">
-      <div id="settings-container"></div>
       <div id="reference-container"></div>
+    </div>
+    <div class="tab-panel hidden" data-panel="pengaturan">
+      <div id="settings-container"></div>
     </div>
   </div>
   <div class="toast hidden" id="toast"></div>
@@ -478,6 +483,7 @@
   var formState = { date:"", phase:1, drill:"", setIndex:0, distance:"", attempts:10, makes:0, note:"" };
   var lastKnownDate = "";
   var themePreference = "system";
+  var lastMainTab = "latihan";
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -528,12 +534,17 @@
     window.__toastTimer = setTimeout(function(){ t.classList.add("hidden"); }, 2200);
   }
   function switchTab(name){
-    // Scoped to #tabbar specifically — the theme switcher in the Panduan tab
-    // reuses the .tab-btn class for visual consistency but isn't part of
-    // this main tab bar, so a bare ".tab-btn" query would wrongly clear its
-    // active state too.
+    // Scoped to #tabbar specifically — the Pengaturan panel and its theme
+    // switcher reuse the .tab-btn class for visual consistency but aren't
+    // part of this main tab bar, so a bare ".tab-btn" query would wrongly
+    // clear their active state too.
     document.querySelectorAll("#tabbar .tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab===name); });
     document.querySelectorAll(".tab-panel").forEach(function(p){ p.classList.toggle("hidden", p.dataset.panel!==name); });
+    // "Pengaturan" is opened via the header gear icon, not #tabbar, so it has
+    // no main-tab identity of its own — remember whichever of the three main
+    // tabs was active before it, so the settings page's back button returns
+    // there instead of hardcoding "latihan".
+    if(name==="latihan" || name==="riwayat" || name==="panduan"){ lastMainTab = name; }
   }
 
   function loadData(){
@@ -590,9 +601,10 @@
     }).join("");
     container.innerHTML =
       '<div class="card"><div class="card-head"><span class="tag">PENGATURAN</span><h2>Tampilan</h2></div>'+
+      '<div class="field"><span>Tema</span><div class="theme-switcher">'+btns+'</div></div>'+
       '<p class="goal">System mengikuti pengaturan HP secara otomatis. Light/Dark mengunci tema terlepas dari pengaturan HP.</p>'+
-      '<div class="theme-switcher">'+btns+'</div>'+
-      '</div>';
+      '</div>'+
+      '<button type="button" class="btn full" data-action="close-settings">&larr; Kembali</button>';
   }
 
   // ---- Drill / set helpers ----
@@ -760,7 +772,8 @@
     }).join("");
     $("header-container").innerHTML =
       '<div class="scoreboard"><div class="topbar"></div>'+
-      '<div class="eyebrow">PROGRAM LATIHAN SHOOTING</div>'+
+      '<div class="eyebrow-row"><div class="eyebrow">PROGRAM LATIHAN SHOOTING</div>'+
+      '<button type="button" class="settings-btn" data-action="open-settings" aria-label="Pengaturan">&#9881;</button></div>'+
       '<div class="phase-readout"><span class="phase-num">F'+cur+'</span><span class="phase-name">'+esc(PHASES[cur].name)+'</span></div>'+
       '<div class="phase-dots">'+dots+'</div>'+
       '</div>';
@@ -1055,6 +1068,8 @@
     else if(action==="dec-makes"){ formState.makes=Math.max(0,formState.makes-1); renderLogForm(); }
     else if(action==="save-session") handleSave();
     else if(action==="delete-entry") handleDelete(btn.dataset.id);
+    else if(action==="open-settings") switchTab("pengaturan");
+    else if(action==="close-settings") switchTab(lastMainTab);
   });
 
   document.getElementById("app").addEventListener("change", function(e){
