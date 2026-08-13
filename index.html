@@ -117,6 +117,12 @@
     padding-bottom:calc(60px + env(safe-area-inset-bottom));
     padding-top:calc(14px + env(safe-area-inset-top));
   }
+  /* Extra bottom room while the floating rest-timer bar is on screen, so it
+     never covers the last card's content/buttons — height of the bar itself
+     (~64-72px) plus its own safe-area padding, plus a margin buffer. */
+  #app.has-rest-bar{
+    padding-bottom:calc(60px + 96px + env(safe-area-inset-bottom));
+  }
   h1,h2{margin:0;}
   button, select, input, textarea{font:inherit;}
 
@@ -140,9 +146,12 @@
   .tab-btn{flex:1; background:transparent; border:none; border-radius:7px; padding:13px 6px; font-family:var(--sans); font-weight:800; font-size:13px; text-transform:uppercase; letter-spacing:0.02em; color:var(--color-text-secondary); cursor:pointer; min-height:44px;}
   .tab-btn.active{background:var(--color-primary); color:var(--color-on-primary);}
   .tab-panel.hidden{display:none;}
-  /* Same segmented-control look as .tabbar, minus sticky positioning — used for the theme picker inside a card. */
-  .theme-switcher{display:flex; gap:5px; background:var(--color-panel); padding:4px; border-radius:10px;}
-  .theme-switcher .tab-btn{padding:11px 6px; font-size:12px;}
+  /* Same segmented-control look as .tabbar, minus sticky positioning — used
+     for the theme picker and other ON/OFF settings rows inside a card.
+     .segmented is a plain alias so non-theme toggles (e.g. Timer settings)
+     don't have to borrow a theme-specific class name. */
+  .theme-switcher, .segmented{display:flex; gap:5px; background:var(--color-panel); padding:4px; border-radius:10px;}
+  .theme-switcher .tab-btn, .segmented .tab-btn{padding:11px 6px; font-size:12px;}
 
   /* ---- Cards ---- */
   .card{background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:var(--shadow-card);}
@@ -269,6 +278,35 @@
   .toast.hidden{opacity:0; pointer-events:none; transform:translateX(-50%) translateY(10px);}
   .toast.error{background:var(--color-error-solid); border-color:var(--color-error-solid); color:#fff;}
 
+  /* ---- Rest timer ----
+     .rest-prompt is the inline "not started yet" card inside the log form
+     (idle state — see requirement: floating bar only for running/paused/
+     completed, never idle). Once started, .rest-timer-bar is the fixed,
+     persistent floating control — see #app.has-rest-bar above for the
+     matching content padding, and z-index note below. */
+  .rest-prompt{background:var(--color-panel); border-radius:8px; padding:12px; margin:2px 0 14px;}
+  .rest-prompt-top{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:10px;}
+  .rest-prompt-label{font-family:var(--mono); font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--color-text-secondary);}
+  .rest-prompt-time{font-family:var(--mono); font-size:24px; font-weight:800; color:var(--color-primary-on-surface); font-variant-numeric:tabular-nums;}
+  .rest-prompt-actions{display:flex; gap:8px;}
+  .rest-prompt-actions .btn{flex:1; font-size:12px; padding:11px 8px; min-width:0;}
+
+  /* z-index sits above the sticky #tabbar (10) so it isn't hidden while
+     scrolling a tab, but below .toast (50) so save/delete confirmations
+     stay visible even while resting. */
+  .rest-timer-bar{position:fixed; left:0; right:0; bottom:0; z-index:30; max-width:480px; margin:0 auto; background:var(--color-surface); border-top:1px solid var(--color-border); box-shadow:var(--shadow-card); padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; align-items:center; gap:10px; min-width:0;}
+  .rest-timer-bar.hidden{display:none;}
+  .rest-bar-label{font-family:var(--mono); font-size:11px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-text-secondary); flex-shrink:0;}
+  .rest-bar-label.accent{color:var(--color-accent-on-surface);}
+  .rest-bar-time{font-family:var(--mono); font-size:20px; font-weight:800; color:var(--color-primary-on-surface); flex:1 1 auto; min-width:0; font-variant-numeric:tabular-nums;}
+  .rest-bar-actions{display:flex; gap:6px; flex-shrink:0; min-width:0;}
+  .rest-bar-btn{flex:0 0 auto; font-family:var(--sans); font-weight:800; text-transform:uppercase; letter-spacing:0.02em; font-size:11px; padding:9px 10px; border-radius:8px; border:1px solid var(--color-border); background:var(--color-panel); color:var(--color-text-primary); cursor:pointer; min-height:40px; white-space:nowrap;}
+  .rest-bar-btn.ghost{background:transparent;}
+  .rest-bar-btn.primary{background:var(--color-primary); border-color:var(--color-primary); color:var(--color-on-primary);}
+  @media (max-width:340px){
+    .rest-bar-label{display:none;}
+  }
+
   /* ---- Chart ---- */
   .chart-svg{width:100%; height:auto; display:block; margin:6px 0 2px;}
   .chart-grid{stroke:var(--color-border); stroke-width:1;}
@@ -312,8 +350,11 @@
     </div>
     <div class="tab-panel hidden" data-panel="pengaturan">
       <div id="settings-container"></div>
+      <div id="timer-settings-container"></div>
+      <button type="button" class="btn full" data-action="close-settings">&larr; Kembali</button>
     </div>
   </div>
+  <div class="rest-timer-bar hidden" id="rest-timer-bar"></div>
   <div class="toast hidden" id="toast"></div>
 </div>
 
@@ -479,11 +520,23 @@
 
   var STORAGE_KEY = "shooting-tracker-data";
   var THEME_KEY = "shooting-tracker-theme";
+  var TIMER_SETTINGS_KEY = "shooting-tracker-timer-settings";
   var appData = { currentPhase:1, entries:[] };
   var formState = { date:"", phase:1, drill:"", setIndex:0, distance:"", attempts:10, makes:0, note:"" };
   var lastKnownDate = "";
   var themePreference = "system";
   var lastMainTab = "latihan";
+  var timerSettings = { sound:true, autoStart:false };
+
+  // ---- Rest timer state — deliberately kept separate from formState (the
+  // shooting log) so timer bookkeeping never bleeds into attempts/makes/
+  // set-advance logic. States: idle / running / paused / completed.
+  // "skipped" is a transition, not a resting UI state — see skipRestTimer().
+  var restTimer = { state:"idle", totalMs:0, endTime:null, remainingMsPaused:null };
+  var restTickHandle = null;
+  var restPendingExtraSeconds = 0;
+  var restPromptKeyForExtra = "";
+  var audioCtx = null;
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -603,8 +656,216 @@
       '<div class="card"><div class="card-head"><span class="tag">PENGATURAN</span><h2>Tampilan</h2></div>'+
       '<div class="field"><span>Tema</span><div class="theme-switcher">'+btns+'</div></div>'+
       '<p class="goal">System mengikuti pengaturan HP secara otomatis. Light/Dark mengunci tema terlepas dari pengaturan HP.</p>'+
-      '</div>'+
-      '<button type="button" class="btn full" data-action="close-settings">&larr; Kembali</button>';
+      '</div>';
+  }
+
+  // ---- Timer settings: Sound + Auto-start, persisted separately from theme
+  // and app data so each concern has its own storage key (same pattern as
+  // THEME_KEY) — no shared/duplicated state.
+  function loadTimerSettings(){
+    try{
+      var raw = localStorage.getItem(TIMER_SETTINGS_KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        if(typeof parsed.sound === "boolean") timerSettings.sound = parsed.sound;
+        if(typeof parsed.autoStart === "boolean") timerSettings.autoStart = parsed.autoStart;
+      }
+    }catch(err){ /* keep defaults: sound ON, autoStart OFF */ }
+  }
+  function saveTimerSettings(){
+    try{ localStorage.setItem(TIMER_SETTINGS_KEY, JSON.stringify(timerSettings)); }catch(err){ /* preference just won't persist */ }
+  }
+  function renderTimerSettings(){
+    var container = $("timer-settings-container");
+    if(!container) return;
+    function toggle(key, currentBool){
+      return '<div class="segmented">'+
+        '<button type="button" class="tab-btn '+(currentBool?"active":"")+'" data-timer-setting="'+key+'" data-value="on">ON</button>'+
+        '<button type="button" class="tab-btn '+(!currentBool?"active":"")+'" data-timer-setting="'+key+'" data-value="off">OFF</button>'+
+        '</div>';
+    }
+    container.innerHTML =
+      '<div class="card"><div class="card-head"><span class="tag">PENGATURAN</span><h2>Timer</h2></div>'+
+      '<div class="field"><span>Sound</span>'+toggle("sound", timerSettings.sound)+'</div>'+
+      '<div class="field"><span>Auto-start Rest Timer</span>'+toggle("autoStart", timerSettings.autoStart)+'</div>'+
+      '<p class="goal">Auto-start langsung mulai hitung mundur istirahat begitu sesi disimpan, tanpa perlu tekan Mulai.</p>'+
+      '</div>';
+  }
+
+  // ---- Rest timer ----
+  // REST is stored on the drill as free text (e.g. "~30 detik") so existing
+  // drill data/reference rendering stays untouched — this just extracts the
+  // number of seconds from that text at render time. Drills without a
+  // restBetweenSets value (e.g. "Pickup game") simply get no rest prompt,
+  // rather than falling back to a hardcoded duration.
+  function parseRestSeconds(restText){
+    if(!restText) return 0;
+    var match = String(restText).match(/\d+/);
+    if(!match) return 0;
+    var n = parseInt(match[0], 10);
+    return isNaN(n) ? 0 : n;
+  }
+  function formatMMSS(ms){
+    var totalSec = Math.max(0, Math.round(ms/1000));
+    var m = Math.floor(totalSec/60);
+    var s = totalSec % 60;
+    return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+  }
+
+  // A short synthesized buzzer (Web Audio API) — no external asset/URL, so
+  // nothing to license and nothing that can fail to load offline. Two quick
+  // square-wave blasts read as a training-room buzzer rather than a tone.
+  function getAudioContext(){
+    if(!audioCtx){
+      var Ctor = window.AudioContext || window.webkitAudioContext;
+      if(!Ctor) return null;
+      try{ audioCtx = new Ctor(); }catch(err){ return null; }
+    }
+    return audioCtx;
+  }
+  function unlockAudio(){
+    // Must run inside a user-gesture handler (the Start button's click) —
+    // browsers block AudioContext output until it's resumed from one.
+    var ctx = getAudioContext();
+    if(ctx && ctx.state === "suspended"){ ctx.resume().catch(function(){}); }
+  }
+  function playBuzzer(){
+    if(!timerSettings.sound) return;
+    var ctx = getAudioContext();
+    if(!ctx) return;
+    if(ctx.state === "suspended"){ ctx.resume().catch(function(){}); }
+    var now = ctx.currentTime;
+    [0, 0.28].forEach(function(offset){
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(220, now+offset);
+      gain.gain.setValueAtTime(0.0001, now+offset);
+      gain.gain.exponentialRampToValueAtTime(0.35, now+offset+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now+offset+0.24);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now+offset);
+      osc.stop(now+offset+0.26);
+    });
+  }
+
+  function armRestTick(){
+    disarmRestTick();
+    restTickHandle = setInterval(tickRestTimer, 250);
+  }
+  function disarmRestTick(){
+    if(restTickHandle){ clearInterval(restTickHandle); restTickHandle = null; }
+  }
+  function tickRestTimer(){
+    if(restTimer.state !== "running") return;
+    // Timestamp-based, not a decrementing counter: remaining time is always
+    // derived from (endTime - now), so a delayed/throttled interval tick
+    // (backgrounded tab, slow device) never drifts the displayed time —
+    // the next tick just recomputes the correct value from the timestamp.
+    var remaining = restTimer.endTime - Date.now();
+    if(remaining <= 0){ completeRestTimer(); } else { renderRestTimer(); }
+  }
+  function startRestTimer(seconds){
+    if(!seconds || seconds<=0) return;
+    unlockAudio();
+    restTimer.state = "running";
+    restTimer.totalMs = seconds*1000;
+    restTimer.endTime = Date.now() + restTimer.totalMs;
+    restTimer.remainingMsPaused = null;
+    armRestTick();
+    renderRestTimer();
+    renderLogForm();
+  }
+  function pauseRestTimer(){
+    if(restTimer.state !== "running") return;
+    restTimer.remainingMsPaused = Math.max(0, restTimer.endTime - Date.now());
+    restTimer.state = "paused";
+    disarmRestTick();
+    renderRestTimer();
+  }
+  function resumeRestTimer(){
+    if(restTimer.state !== "paused") return;
+    restTimer.endTime = Date.now() + (restTimer.remainingMsPaused||0);
+    restTimer.state = "running";
+    armRestTick();
+    renderRestTimer();
+  }
+  function resetRestTimer(){
+    if(restTimer.state !== "paused" && restTimer.state !== "running") return;
+    restTimer.remainingMsPaused = restTimer.totalMs;
+    restTimer.endTime = Date.now() + restTimer.totalMs;
+    restTimer.state = "paused";
+    disarmRestTick();
+    renderRestTimer();
+  }
+  function skipRestTimer(){
+    disarmRestTick();
+    restTimer.state = "idle";
+    restTimer.totalMs = 0;
+    restTimer.endTime = null;
+    restTimer.remainingMsPaused = null;
+    renderRestTimer();
+    renderLogForm();
+  }
+  function completeRestTimer(){
+    disarmRestTick();
+    restTimer.state = "completed";
+    restTimer.remainingMsPaused = 0;
+    playBuzzer();
+    renderRestTimer();
+  }
+  function continueAfterRest(){
+    restTimer.state = "idle";
+    restTimer.totalMs = 0;
+    restTimer.endTime = null;
+    restTimer.remainingMsPaused = null;
+    renderRestTimer();
+    renderLogForm();
+  }
+  function renderRestTimer(){
+    var bar = $("rest-timer-bar");
+    var app = $("app");
+    if(!bar) return;
+    if(restTimer.state === "idle"){
+      bar.classList.add("hidden");
+      bar.innerHTML = "";
+      if(app) app.classList.remove("has-rest-bar");
+      return;
+    }
+    if(app) app.classList.add("has-rest-bar");
+    bar.classList.remove("hidden");
+
+    var remainingMs;
+    if(restTimer.state === "running") remainingMs = Math.max(0, restTimer.endTime - Date.now());
+    else if(restTimer.state === "paused") remainingMs = restTimer.remainingMsPaused || 0;
+    else remainingMs = 0; // completed
+    var timeLabel = formatMMSS(remainingMs);
+
+    if(restTimer.state === "running"){
+      bar.innerHTML =
+        '<span class="rest-bar-label">REST</span>'+
+        '<span class="rest-bar-time">'+timeLabel+'</span>'+
+        '<div class="rest-bar-actions">'+
+          '<button type="button" class="rest-bar-btn" data-action="rest-pause">Pause</button>'+
+          '<button type="button" class="rest-bar-btn ghost" data-action="rest-skip">Skip</button>'+
+        '</div>';
+    } else if(restTimer.state === "paused"){
+      bar.innerHTML =
+        '<span class="rest-bar-label">PAUSED</span>'+
+        '<span class="rest-bar-time">'+timeLabel+'</span>'+
+        '<div class="rest-bar-actions">'+
+          '<button type="button" class="rest-bar-btn" data-action="rest-resume">Resume</button>'+
+          '<button type="button" class="rest-bar-btn ghost" data-action="rest-reset">Reset</button>'+
+        '</div>';
+    } else if(restTimer.state === "completed"){
+      bar.innerHTML =
+        '<span class="rest-bar-label accent">REST COMPLETE</span>'+
+        '<span class="rest-bar-time">00:00</span>'+
+        '<div class="rest-bar-actions">'+
+          '<button type="button" class="rest-bar-btn primary" data-action="rest-continue">Lanjut</button>'+
+        '</div>';
+    }
   }
 
   // ---- Drill / set helpers ----
@@ -848,12 +1109,34 @@
         '</div>';
     }
 
+    // Idle-state rest prompt only — once a timer is running/paused/completed,
+    // the floating bar (#rest-timer-bar) is the single source of truth so we
+    // don't show two competing timer UIs at once.
+    var restBlockHtml = "";
+    if(restTimer.state === "idle"){
+      var restBaseSeconds = drillMeta ? parseRestSeconds(drillMeta.restBetweenSets) : 0;
+      if(restBaseSeconds > 0){
+        var restKey = formState.phase+"|"+formState.drill+"|"+formState.setIndex;
+        if(restKey !== restPromptKeyForExtra){ restPendingExtraSeconds = 0; restPromptKeyForExtra = restKey; }
+        var restPreviewSeconds = restBaseSeconds + restPendingExtraSeconds;
+        restBlockHtml =
+          '<div class="rest-prompt">'+
+            '<div class="rest-prompt-top"><span class="rest-prompt-label">Rest</span><span class="rest-prompt-time">'+formatMMSS(restPreviewSeconds*1000)+'</span></div>'+
+            '<div class="rest-prompt-actions">'+
+              '<button type="button" class="btn" data-action="rest-add-30">+30 detik</button>'+
+              '<button type="button" class="btn primary" data-action="rest-start" data-seconds="'+restPreviewSeconds+'">Mulai Istirahat</button>'+
+            '</div>'+
+          '</div>';
+      }
+    }
+
     $("log-form-container").innerHTML =
       '<div class="card form-card"><div class="card-head"><span class="tag">CATAT SESI</span><h2>Sesi Latihan Baru</h2></div>'+
       '<label class="field"><span>Tanggal</span><input type="date" id="f-date" value="'+formState.date+'"></label>'+
       '<label class="field"><span>Fase</span><select id="f-phase">'+phaseOptions+'</select></label>'+
       '<label class="field"><span>Drill</span><select id="f-drill">'+drillOptionsHtml(formState.phase, formState.drill)+'</select></label>'+
       setBlockHtml+
+      restBlockHtml+
       (showDistance ? '<label class="field"><span>Jarak dari ring (meter)</span><input type="number" id="f-distance" min="0.5" step="0.5" value="'+esc(formState.distance)+'" placeholder="cth. 3.5"></label>' : "")+
       '<div class="stepper-row">'+
       '<div class="stepper"><span class="stepper-label">Attempts</span><div class="stepper-controls">'+
@@ -1021,6 +1304,15 @@
     } else {
       showToast("Set tersimpan — lanjut Set "+(formState.setIndex+1)+"/"+setInfoAtSave.setsTotal);
     }
+
+    // Auto-start rest timer (off by default — see Pengaturan > Timer). Still
+    // runs inside this click handler's call stack, so it counts as a user
+    // gesture for audio-unlock purposes just like tapping "Mulai Istirahat".
+    if(timerSettings.autoStart && restTimer.state === "idle"){
+      var autoRestMeta = getDrillMeta(formState.phase, formState.drill);
+      var autoRestSeconds = autoRestMeta ? parseRestSeconds(autoRestMeta.restBetweenSets) : 0;
+      if(autoRestSeconds > 0){ startRestTimer(autoRestSeconds); }
+    }
   }
 
   function handleDelete(id){
@@ -1055,6 +1347,14 @@
     if(tabBtn){ switchTab(tabBtn.dataset.tab); return; }
     var themeOptBtn = e.target.closest("[data-theme-option]");
     if(themeOptBtn){ setThemePreference(themeOptBtn.dataset.themeOption); return; }
+    var timerSettingBtn = e.target.closest("[data-timer-setting]");
+    if(timerSettingBtn){
+      var settingKey = timerSettingBtn.dataset.timerSetting;
+      timerSettings[settingKey] = timerSettingBtn.dataset.value === "on";
+      saveTimerSettings();
+      renderTimerSettings();
+      return;
+    }
     var dot = e.target.closest(".dot[data-phase]");
     if(dot){ jumpToReference(dot.dataset.phase); return; }
     var btn = e.target.closest("[data-action]");
@@ -1070,6 +1370,22 @@
     else if(action==="delete-entry") handleDelete(btn.dataset.id);
     else if(action==="open-settings") switchTab("pengaturan");
     else if(action==="close-settings") switchTab(lastMainTab);
+    else if(action==="rest-add-30"){ restPendingExtraSeconds += 30; renderLogForm(); }
+    else if(action==="rest-start") startRestTimer(parseInt(btn.dataset.seconds,10)||0);
+  });
+
+  // The floating rest-timer bar lives outside #app (it must stay fixed to
+  // the viewport across every tab, not just Latihan), so its controls need
+  // their own delegated listener rather than piggybacking on #app's.
+  document.getElementById("rest-timer-bar").addEventListener("click", function(e){
+    var btn = e.target.closest("[data-action]");
+    if(!btn) return;
+    var action = btn.dataset.action;
+    if(action==="rest-pause") pauseRestTimer();
+    else if(action==="rest-resume") resumeRestTimer();
+    else if(action==="rest-reset") resetRestTimer();
+    else if(action==="rest-skip") skipRestTimer();
+    else if(action==="rest-continue") continueAfterRest();
   });
 
   document.getElementById("app").addEventListener("change", function(e){
@@ -1100,6 +1416,7 @@
   (function init(){
     loadThemePreference();
     applyThemePreference();
+    loadTimerSettings();
     loadData();
     lastKnownDate = todayStr();
     formState.phase = appData.currentPhase;
@@ -1114,14 +1431,25 @@
     renderHistory();
     renderChart();
     renderThemeSettings();
+    renderTimerSettings();
     renderReference();
   })();
 
+  // Rest timer accuracy while backgrounded: the countdown is always derived
+  // from endTime (a fixed timestamp), so a throttled/paused interval in a
+  // backgrounded tab can't make it drift — but the interval itself may not
+  // fire at all while hidden, leaving a stale number on screen. Forcing one
+  // recompute+render as soon the app is visible/focused again snaps the
+  // display to the correct remaining time (or completion) immediately,
+  // without waiting for the next 250ms tick.
+  function resyncRestTimerOnResume(){
+    if(restTimer.state === "running") tickRestTimer();
+  }
   document.addEventListener("visibilitychange", function(){
-    if(document.visibilityState === "visible") checkDailyReset();
+    if(document.visibilityState === "visible"){ checkDailyReset(); resyncRestTimerOnResume(); }
   });
-  window.addEventListener("focus", checkDailyReset);
-  window.addEventListener("pageshow", checkDailyReset);
+  window.addEventListener("focus", function(){ checkDailyReset(); resyncRestTimerOnResume(); });
+  window.addEventListener("pageshow", function(){ checkDailyReset(); resyncRestTimerOnResume(); });
 
   if("serviceWorker" in navigator){
     window.addEventListener("load", function(){
