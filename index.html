@@ -4,6 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Program Latihan Shooting</title>
+<script>
+// Runs before first paint so a manual Light/Dark choice applies immediately —
+// otherwise the page would flash the System-resolved theme first, then swap.
+(function(){
+  try{
+    var pref = localStorage.getItem("shooting-tracker-theme");
+    if(pref === "light" || pref === "dark"){
+      document.documentElement.setAttribute("data-theme", pref);
+    }
+  }catch(err){ /* localStorage unavailable — fall back to System */ }
+})();
+</script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#552583">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12071C">
@@ -54,8 +66,15 @@
     --mono: ui-monospace, 'SF Mono', Consolas, 'Courier New', monospace;
     --sans: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   }
+  /* Theme resolution: "System" (default, no [data-theme] attribute set) keeps
+     following the OS via this media query, exactly as before. An explicit
+     manual choice sets [data-theme] on <html> — "light" suppresses this dark
+     media block via :not([data-theme="light"]) even if the OS is dark, and
+     the unconditional :root[data-theme="dark"] block below forces dark
+     regardless of the OS. Values are identical to before; only the
+     conditions under which they apply have changed. */
   @media (prefers-color-scheme: dark){
-    :root{
+    :root:not([data-theme="light"]){
       --color-primary-on-surface:#C9A6E8;   /* lighter lavender — #552583 text would fail contrast on a near-black surface */
       --color-accent-on-surface:#FDB927;    /* raw gold reads fine as text/line once the surface is dark */
       --color-background:#12071C;
@@ -70,6 +89,21 @@
       --shadow-card:0 4px 18px rgba(0,0,0,0.45);
       --shadow-toast:0 10px 30px rgba(0,0,0,0.5);
     }
+  }
+  :root[data-theme="dark"]{
+    --color-primary-on-surface:#C9A6E8;
+    --color-accent-on-surface:#FDB927;
+    --color-background:#12071C;
+    --color-surface:#1E1029;
+    --color-panel:rgba(255,255,255,0.06);
+    --color-text-primary:#FFFFFF;
+    --color-text-secondary:rgba(255,255,255,0.64);
+    --color-border:rgba(255,255,255,0.12);
+    --color-success:#4ADE80;
+    --color-warning:#F2994A;
+    --color-error:#FF6E61;
+    --shadow-card:0 4px 18px rgba(0,0,0,0.45);
+    --shadow-toast:0 10px 30px rgba(0,0,0,0.5);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html, body{background:var(--color-background);}
@@ -103,6 +137,9 @@
   .tab-btn{flex:1; background:transparent; border:none; border-radius:7px; padding:13px 6px; font-family:var(--sans); font-weight:800; font-size:13px; text-transform:uppercase; letter-spacing:0.02em; color:var(--color-text-secondary); cursor:pointer; min-height:44px;}
   .tab-btn.active{background:var(--color-primary); color:var(--color-on-primary);}
   .tab-panel.hidden{display:none;}
+  /* Same segmented-control look as .tabbar, minus sticky positioning — used for the theme picker inside a card. */
+  .theme-switcher{display:flex; gap:5px; background:var(--color-panel); padding:4px; border-radius:10px;}
+  .theme-switcher .tab-btn{padding:11px 6px; font-size:12px;}
 
   /* ---- Cards ---- */
   .card{background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:var(--shadow-card);}
@@ -268,6 +305,7 @@
       <div id="history-container"></div>
     </div>
     <div class="tab-panel hidden" data-panel="panduan">
+      <div id="settings-container"></div>
       <div id="reference-container"></div>
     </div>
   </div>
@@ -435,9 +473,11 @@
   };
 
   var STORAGE_KEY = "shooting-tracker-data";
+  var THEME_KEY = "shooting-tracker-theme";
   var appData = { currentPhase:1, entries:[] };
   var formState = { date:"", phase:1, drill:"", setIndex:0, distance:"", attempts:10, makes:0, note:"" };
   var lastKnownDate = "";
+  var themePreference = "system";
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -488,7 +528,11 @@
     window.__toastTimer = setTimeout(function(){ t.classList.add("hidden"); }, 2200);
   }
   function switchTab(name){
-    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab===name); });
+    // Scoped to #tabbar specifically — the theme switcher in the Panduan tab
+    // reuses the .tab-btn class for visual consistency but isn't part of
+    // this main tab bar, so a bare ".tab-btn" query would wrongly clear its
+    // active state too.
+    document.querySelectorAll("#tabbar .tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab===name); });
     document.querySelectorAll(".tab-panel").forEach(function(p){ p.classList.toggle("hidden", p.dataset.panel!==name); });
   }
 
@@ -506,6 +550,49 @@
     try{
       localStorage.setItem(STORAGE_KEY, JSON.stringify({currentPhase:appData.currentPhase, entries:appData.entries}));
     }catch(err){ showToast("Gagal menyimpan data", true); }
+  }
+
+  // ---- Theme preference: system (default) / light / dark.
+  // "system" means no [data-theme] attribute is set at all, so the existing
+  // @media (prefers-color-scheme: dark) rule keeps driving the look exactly
+  // as before this feature existed — light/dark just set the attribute so
+  // the unconditional override blocks in <style> take over instead.
+  function loadThemePreference(){
+    try{
+      var v = localStorage.getItem(THEME_KEY);
+      if(v === "light" || v === "dark" || v === "system") themePreference = v;
+    }catch(err){ /* keep default "system" */ }
+  }
+  function applyThemePreference(){
+    if(themePreference === "light" || themePreference === "dark"){
+      document.documentElement.setAttribute("data-theme", themePreference);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+  }
+  function setThemePreference(pref){
+    if(pref!=="system" && pref!=="light" && pref!=="dark") return;
+    themePreference = pref;
+    try{ localStorage.setItem(THEME_KEY, pref); }catch(err){ /* preference just won't persist */ }
+    applyThemePreference();
+    renderThemeSettings();
+  }
+  function renderThemeSettings(){
+    var container = $("settings-container");
+    if(!container) return;
+    var options = [
+      {key:"system", label:"&#9881; System"},
+      {key:"light", label:"&#9728; Light"},
+      {key:"dark", label:"&#127769; Dark"}
+    ];
+    var btns = options.map(function(o){
+      return '<button type="button" class="tab-btn '+(themePreference===o.key?"active":"")+'" data-theme-option="'+o.key+'">'+o.label+'</button>';
+    }).join("");
+    container.innerHTML =
+      '<div class="card"><div class="card-head"><span class="tag">PENGATURAN</span><h2>Tampilan</h2></div>'+
+      '<p class="goal">System mengikuti pengaturan HP secara otomatis. Light/Dark mengunci tema terlepas dari pengaturan HP.</p>'+
+      '<div class="theme-switcher">'+btns+'</div>'+
+      '</div>';
   }
 
   // ---- Drill / set helpers ----
@@ -953,6 +1040,8 @@
   document.getElementById("app").addEventListener("click", function(e){
     var tabBtn = e.target.closest(".tab-btn[data-tab]");
     if(tabBtn){ switchTab(tabBtn.dataset.tab); return; }
+    var themeOptBtn = e.target.closest("[data-theme-option]");
+    if(themeOptBtn){ setThemePreference(themeOptBtn.dataset.themeOption); return; }
     var dot = e.target.closest(".dot[data-phase]");
     if(dot){ jumpToReference(dot.dataset.phase); return; }
     var btn = e.target.closest("[data-action]");
@@ -994,6 +1083,8 @@
   });
 
   (function init(){
+    loadThemePreference();
+    applyThemePreference();
     loadData();
     lastKnownDate = todayStr();
     formState.phase = appData.currentPhase;
@@ -1007,6 +1098,7 @@
     renderLogForm();
     renderHistory();
     renderChart();
+    renderThemeSettings();
     renderReference();
   })();
 
